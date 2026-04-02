@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeFi Strategy Dashboard</title>
+<script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
+<style>
+  :root {
+    --bg: #0e1117; --surface: #1a1d23; --border: #2d3139;
+    --text: #e6e6e6; --text-dim: #9ca3af; --accent: #636efa;
+    --green: #00cc96; --red: #ef553b; --orange: #ffa15a; --yellow: #fecb52;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: 300px; min-width: 300px; background: var(--surface); border-right: 1px solid var(--border);
+    padding: 20px; overflow-y: auto; position: sticky; top: 0; height: 100vh;
+  }
+  .sidebar h2 { font-size: 16px; margin-bottom: 16px; color: var(--accent); }
+  .sidebar h3 { font-size: 13px; margin: 16px 0 8px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .sidebar label { display: block; font-size: 13px; color: var(--text-dim); margin: 10px 0 4px; }
+  .sidebar input[type="number"], .sidebar input[type="range"], .sidebar select {
+    width: 100%; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 4px; font-size: 14px;
+  }
+  .sidebar input[type="range"] { padding: 0; border: none; background: transparent; }
+  .range-row { display: flex; justify-content: space-between; align-items: center; }
+  .range-val { font-size: 13px; color: var(--accent); min-width: 50px; text-align: right; }
+  .sidebar hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+  .sidebar button {
+    width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none;
+    border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; margin-top: 8px;
+  }
+  .sidebar button:hover { opacity: 0.9; }
+
+  .main { flex: 1; padding: 24px 32px; overflow-y: auto; }
+  .main h1 { font-size: 28px; margin-bottom: 4px; }
+  .main .subtitle { color: var(--text-dim); font-size: 14px; margin-bottom: 24px; }
+  .main h2 { font-size: 20px; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .main h3 { font-size: 16px; margin: 16px 0 8px; }
+
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0; }
+  .metric {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px;
+  }
+  .metric .label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+  .metric .delta { font-size: 12px; margin-top: 2px; }
+  .metric .delta.positive { color: var(--green); }
+  .metric .delta.negative { color: var(--red); }
+  .metric .delta.warning { color: var(--orange); }
+
+  .hf-gauge {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px;
+    margin: 16px 0; text-align: center;
+  }
+  .hf-gauge .hf-value { font-size: 48px; font-weight: 800; }
+  .hf-gauge .hf-label { font-size: 14px; color: var(--text-dim); margin-top: 4px; }
+  .hf-gauge .hf-bar { height: 8px; border-radius: 4px; margin-top: 12px; background: linear-gradient(to right, var(--red) 0%, var(--orange) 40%, var(--green) 70%); position: relative; }
+  .hf-gauge .hf-marker { position: absolute; top: -6px; width: 4px; height: 20px; background: #fff; border-radius: 2px; transform: translateX(-50%); }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  th { background: var(--surface); color: var(--text-dim); text-align: left; padding: 10px 12px; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: rgba(99,110,250,0.05); }
+
+  .status-ok { color: var(--green); font-weight: 700; }
+  .status-danger { color: var(--orange); font-weight: 700; }
+  .status-liquidated { color: var(--red); font-weight: 700; }
+
+  .info-box {
+    background: rgba(99,110,250,0.1); border: 1px solid rgba(99,110,250,0.3);
+    border-radius: 8px; padding: 16px; margin: 16px 0; font-size: 14px; line-height: 1.6;
+  }
+  .risk-list { margin: 12px 0; padding-left: 20px; line-height: 1.8; }
+  .risk-list li { margin: 4px 0; }
+  .risk-list strong { color: var(--orange); }
+
+  .chart-container { margin: 16px 0; }
+
+  .summary-table { margin: 16px 0; }
+  .summary-table td:first-child { color: var(--text-dim); font-weight: 600; width: 200px; }
+
+  @media (max-width: 900px) {
+    body { flex-direction: column; }
+    .sidebar { width: 100%; min-width: auto; height: auto; position: static; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── SIDEBAR ──────────────────────────────────────────────────────── -->
+<div class="sidebar">
+  <h2>DeFi Strategy Dashboard</h2>
+
+  <h3>Market</h3>
+  <label>ETH Price (USD)</label>
+  <input type="number" id="ethPrice" value="2451.98" step="10" min="100">
+
+  <h3>AAVE Position</h3>
+  <label>Deposit ETH</label>
+  <input type="number" id="depositEth" value="75.1" step="0.1" min="0.1">
+
+  <label>Borrow Amount (USD)</label>
+  <input type="number" id="borrowAmount" value="100000" step="1000" min="0">
+
+  <div class="range-row">
+    <label>Buy ETH from Borrow (USD)</label>
+    <span class="range-val" id="buyEthVal">21000</span>
+  </div>
+  <input type="range" id="buyEthUsd" min="0" max="50000" value="21000" step="1000">
+
+  <h3>Uniswap V3 LP</h3>
+  <label>Fee Tier</label>
+  <select id="feeTier">
+    <option value="0.01">0.01%</option>
+    <option value="0.05">0.05%</option>
+    <option value="0.3" selected>0.3%</option>
+    <option value="1.0">1.0%</option>
+  </select>
+
+  <div class="range-row">
+    <label>LP Range +/-%</label>
+    <span class="range-val" id="lpRangeVal">15%</span>
+  </div>
+  <input type="range" id="lpRange" min="5" max="50" value="15" step="1">
+
+  <h3>APR Assumptions</h3>
+  <div class="range-row">
+    <label>LP Fee APR</label>
+    <span class="range-val" id="feeAprVal">30%</span>
+  </div>
+  <input type="range" id="feeApr" min="5" max="80" value="30" step="1">
+
+  <div class="range-row">
+    <label>Borrow APR</label>
+    <span class="range-val" id="borrowAprVal">5%</span>
+  </div>
+  <input type="range" id="borrowApr" min="1" max="20" value="5" step="0.5">
+
+  <h3>Simulation</h3>
+  <div class="range-row">
+    <label>Months</label>
+    <span class="range-val" id="simMonthsVal">12</span>
+  </div>
+  <input type="range" id="simMonths" min="1" max="36" value="12" step="1">
+
+  <div class="range-row">
+    <label>ETH Volatility</label>
+    <span class="range-val" id="volVal">30%</span>
+  </div>
+  <input type="range" id="ethVol" min="10" max="80" value="30" step="1">
+
+  <div class="range-row">
+    <label>Monte Carlo Paths</label>
+    <span class="range-val" id="nSimsVal">100</span>
+  </div>
+  <input type="range" id="nSims" min="50" max="500" value="100" step="50">
+
+  <hr>
+  <button onclick="runDashboard()">Recalculate</button>
+</div>
+
+<!-- ─── MAIN CONTENT ─────────────────────────────────────────────────── -->
+<div class="main">
+  <h1>DeFi Strategy Dashboard</h1>
+  <p class="subtitle">AAVE Collateral + Borrow USDT + Uniswap V3 LP + Collect Fees</p>
+
+  <!-- Section 1: Wallet -->
+  <h2>1. Wallet Analysis</h2>
+  <div class="info-box">
+    Demo data for wallet <code>0x6b0f1267f2c7a633c639fb525a400a55f8d78888</code>.
+    On GitHub Pages we can't call Etherscan API (CORS). Data below is representative of the strategy.
+  </div>
+  <table id="walletTable"></table>
+  <div class="metrics" id="walletMetrics"></div>
+  <div class="chart-container" id="feesChart"></div>
+
+  <!-- Section 2: Strategy Calculator -->
+  <h2>2. Strategy Calculator</h2>
+  <div class="hf-gauge" id="hfGauge"></div>
+  <div class="metrics" id="stratMetrics"></div>
+  <table id="stepsTable"></table>
+
+  <!-- Section 3: Monte Carlo P&L -->
+  <h2>3. P&L Simulation (Monte Carlo)</h2>
+  <div class="metrics" id="simMetrics"></div>
+  <div class="chart-container" id="pnlChart"></div>
+  <div class="chart-container" id="componentsChart"></div>
+
+  <!-- Section 4: Risk -->
+  <h2>4. Risk Analysis</h2>
+  <div id="riskContent"></div>
+  <h3>Stress Test</h3>
+  <table id="stressTable"></table>
+  <div class="chart-container" id="stressChart"></div>
+
+  <!-- Summary -->
+  <h2>Strategy Summary</h2>
+  <div id="summaryContent"></div>
+</div>
+
+<script>
+// ─── AAVE v3 Constants ──────────────────────────────────────────────
+const AAVE_LT = 0.83;          // Liquidation Threshold for ETH
+const AAVE_MAX_LTV = 0.805;    // Max LTV for ETH
+const AAVE_LIQ_PENALTY = 0.05; // 5% liquidation penalty
+
+// ─── Helpers ────────────────────────────────────────────────────────
+function fmt(n, d=2) { return n.toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d}); }
+function fmtUsd(n) { return '$' + fmt(n); }
+
+function getInputs() {
+  return {
+    ethPrice: parseFloat(document.getElementById('ethPrice').value),
+    depositEth: parseFloat(document.getElementById('depositEth').value),
+    borrowAmount: parseFloat(document.getElementById('borrowAmount').value),
+    buyEthUsd: parseFloat(document.getElementById('buyEthUsd').value),
+    feeTier: parseFloat(document.getElementById('feeTier').value),
+    lpRange: parseFloat(document.getElementById('lpRange').value) / 100,
+    feeApr: parseFloat(document.getElementById('feeApr').value) / 100,
+    borrowApr: parseFloat(document.getElementById('borrowApr').value) / 100,
+    simMonths: parseInt(document.getElementById('simMonths').value),
+    ethVol: parseFloat(document.getElementById('ethVol').value) / 100,
+    nSims: parseInt(document.getElementById('nSims').value),
+  };
+}
+
+function calcHealthFactor(collateralValue, borrowAmount) {
+  if (borrowAmount === 0) return Infinity;
+  return (collateralValue * AAVE_LT) / borrowAmount;
+}
+
+function calcLiquidationPrice(ethAmount, borrowAmount) {
+  return borrowAmount / (ethAmount * AAVE_LT);
+}
+
+function calcImpermanentLoss(priceRatio) {
+  const sqrtR = Math.sqrt(priceRatio);
+  return 2 * sqrtR / (1 + priceRatio) - 1;
+}
+
+function calcConcentratedIL(priceRatio, rangeFactor) {
+  const baseIL = calcImpermanentLoss(priceRatio);
+  const concentration = 1.0 / rangeFactor;
+  return baseIL * Math.min(concentration, 5.0);
+}
+
+// Box-Muller transform
+function randn() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+function simulateEthPrices(currentPrice, months, vol, nSims) {
+  const dt = 1 / 365;
+  const days = months * 30;
+  const paths = [];
+  for (let i = 0; i < nSims; i++) {
+    const path = [currentPrice];
+    for (let t = 1; t <= days; t++) {
+      const z = randn();
+      path.push(path[t-1] * Math.exp((-0.5 * vol * vol) * dt + vol * Math.sqrt(dt) * z));
+    }
+    paths.push(path);
+  }
+  return paths;
+}
+
+function percentile(arr, p) {
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+// ─── Wallet Demo Data ───────────────────────────────────────────────
+const walletTxs = [
+  { date: '2024-06-01', action: 'AAVE Supply', asset: 'ETH', amountEth: 75.1, amountUsd: 184143.70 },
+  { date: '2024-06-01', action: 'AAVE Borrow', asset: 'USDT', amountEth: 0, amountUsd: 100000.00 },
+  { date: '2024-06-01', action: 'Buy ETH', asset: 'ETH', amountEth: 8.9, amountUsd: 21822.62 },
+  { date: '2024-06-01', action: 'Uniswap V3 Mint', asset: 'ETH/USDT', amountEth: 8.9, amountUsd: 100072.69 },
+  { date: '2024-07-01', action: 'Uniswap Collect', asset: 'Fees', amountEth: 0.8, amountUsd: 1961.58 },
+  { date: '2024-08-01', action: 'Uniswap Collect', asset: 'Fees', amountEth: 1.2, amountUsd: 2942.38 },
+  { date: '2024-09-01', action: 'Uniswap Collect', asset: 'Fees', amountEth: 2.1, amountUsd: 5149.16 },
+  { date: '2024-10-01', action: 'Uniswap Collect', asset: 'Fees', amountEth: 1.5, amountUsd: 3677.97 },
+  { date: '2024-11-01', action: 'Uniswap Collect', asset: 'Fees', amountEth: 2.0, amountUsd: 4903.96 },
+  { date: '2024-12-01', action: 'Uniswap Collect', asset: 'Fees', amountEth: 1.8, amountUsd: 4413.56 },
+];
+
+// ─── Render Functions ───────────────────────────────────────────────
+
+function renderWallet() {
+  const table = document.getElementById('walletTable');
+  let html = '<tr><th>Date</th><th>Action</th><th>Asset</th><th>ETH</th><th>USD</th></tr>';
+  walletTxs.forEach(tx => {
+    html += `<tr><td>${tx.date}</td><td>${tx.action}</td><td>${tx.asset}</td><td>${tx.amountEth > 0 ? fmt(tx.amountEth, 4) : '—'}</td><td>${fmtUsd(tx.amountUsd)}</td></tr>`;
+  });
+  table.innerHTML = html;
+
+  const fees = walletTxs.filter(t => t.action.includes('Collect'));
+  const totalUsd = fees.reduce((s, t) => s + t.amountUsd, 0);
+  const totalEth = fees.reduce((s, t) => s + t.amountEth, 0);
+  const avgMonthly = totalUsd / fees.length;
+
+  document.getElementById('walletMetrics').innerHTML = `
+    <div class="metric"><div class="label">Total Fees (USD)</div><div class="value">${fmtUsd(totalUsd)}</div></div>
+    <div class="metric"><div class="label">Total Fees (ETH)</div><div class="value">${fmt(totalEth, 2)} ETH</div></div>
+    <div class="metric"><div class="label">Avg Monthly Yield</div><div class="value">${fmtUsd(avgMonthly)}</div></div>
+    <div class="metric"><div class="label">Months Active</div><div class="value">${fees.length}</div></div>
+  `;
+
+  Plotly.newPlot('feesChart', [{
+    x: fees.map(f => f.date), y: fees.map(f => f.amountUsd),
+    type: 'bar', marker: { color: '#00cc96' },
+    text: fees.map(f => fmtUsd(f.amountUsd)), textposition: 'outside',
+  }], {
+    title: 'Fees Collected Over Time', template: 'plotly_dark',
+    paper_bgcolor: '#0e1117', plot_bgcolor: '#0e1117',
+    xaxis: { title: 'Date' }, yaxis: { title: 'USD' }, height: 350,
+    margin: { t: 40, b: 40, l: 60, r: 20 },
+  }, { responsive: true });
+}
+
+function renderStrategy(p) {
+  const collateralValue = p.depositEth * p.ethPrice;
+  const hf = calcHealthFactor(collateralValue, p.borrowAmount);
+  const liqPrice = calcLiquidationPrice(p.depositEth, p.borrowAmount);
+  const distToLiq = ((p.ethPrice - liqPrice) / p.ethPrice * 100);
+  const ltvUsed = (p.borrowAmount / collateralValue * 100);
+  const ethBought = p.buyEthUsd / p.ethPrice;
+  const lpUsd = p.borrowAmount;
+  const monthlyFees = lpUsd * p.feeApr / 12;
+  const monthlyBorrow = p.borrowAmount * p.borrowApr / 12;
+  const netMonthly = monthlyFees - monthlyBorrow;
+
+  // HF Gauge
+  const hfColor = hf > 1.5 ? 'var(--green)' : hf > 1.0 ? 'var(--orange)' : 'var(--red)';
+  const hfStatus = hf > 1.5 ? 'SAFE' : hf > 1.2 ? 'MODERATE' : hf > 1.0 ? 'DANGER' : 'LIQUIDATED';
+  const hfPct = Math.min(Math.max((hf - 0.5) / 2.5 * 100, 0), 100);
+  document.getElementById('hfGauge').innerHTML = `
+    <div class="hf-value" style="color:${hfColor}">${hf === Infinity ? '∞' : fmt(hf, 3)}</div>
+    <div class="hf-label">Health Factor — ${hfStatus}</div>
+    <div class="hf-bar"><div class="hf-marker" style="left:${hfPct}%"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-top:4px">
+      <span>0.5 (Liquidated)</span><span>1.0</span><span>1.5</span><span>2.0+</span><span>3.0</span>
+    </div>
+  `;
+
+  // Metrics
+  document.getElementById('stratMetrics').innerHTML = `
+    <div class="metric"><div class="label">Collateral Value</div><div class="value">${fmtUsd(collateralValue)}</div></div>
+    <div class="metric"><div class="label">LTV Used</div><div class="value">${fmt(ltvUsed, 1)}%</div>
+      <div class="delta ${ltvUsed > 70 ? 'negative' : 'positive'}">Max LTV: ${(AAVE_MAX_LTV*100).toFixed(1)}%</div></div>
+    <div class="metric"><div class="label">Liquidation Price</div><div class="value">${fmtUsd(liqPrice)}</div>
+      <div class="delta warning">-${fmt(distToLiq, 1)}% from current</div></div>
+    <div class="metric"><div class="label">Est. Monthly Fees</div><div class="value">${fmtUsd(monthlyFees)}</div></div>
+    <div class="metric"><div class="label">Monthly Borrow Cost</div><div class="value">${fmtUsd(monthlyBorrow)}</div></div>
+    <div class="metric"><div class="label">Net Monthly Income</div><div class="value" style="color:${netMonthly>=0?'var(--green)':'var(--red)'}">${fmtUsd(netMonthly)}</div>
+      <div class="delta ${netMonthly>=0?'positive':'negative'}">${fmt(netMonthly/collateralValue*12*100,1)}% APR</div></div>
+  `;
+
+  // Steps table
+  document.getElementById('stepsTable').innerHTML = `
+    <tr><th>Step</th><th>Action</th><th>Amount ETH</th><th>Amount USD</th><th>Health Factor</th></tr>
+    <tr><td>1</td><td>Deposit ETH to AAVE</td><td>${fmt(p.depositEth, 4)}</td><td>${fmtUsd(collateralValue)}</td><td>—</td></tr>
+    <tr><td>2</td><td>Borrow USDT</td><td>—</td><td>${fmtUsd(p.borrowAmount)}</td><td>${fmt(hf, 3)}</td></tr>
+    <tr><td>3</td><td>Buy ETH (${fmtUsd(p.buyEthUsd)})</td><td>${fmt(ethBought, 4)}</td><td>${fmtUsd(p.buyEthUsd)}</td><td>${fmt(hf, 3)}</td></tr>
+    <tr><td>4</td><td>Create Uniswap V3 LP (+/-${(p.lpRange*100).toFixed(0)}%)</td><td>${fmt(ethBought, 4)}</td><td>${fmtUsd(lpUsd)}</td><td>${fmt(hf, 3)}</td></tr>
+  `;
+
+  return { collateralValue, hf, liqPrice, lpUsd, monthlyFees, monthlyBorrow, netMonthly, ethBought };
+}
+
+function renderSimulation(p, strat) {
+  const paths = simulateEthPrices(p.ethPrice, p.simMonths, p.ethVol, p.nSims);
+  const days = paths[0].length;
+  const timeAxis = Array.from({length: days}, (_, i) => i / 30);
+
+  const dailyFee = strat.lpUsd * p.feeApr / 365;
+  const dailyBorrow = p.borrowAmount * p.borrowApr / 365;
+
+  // Arrays: [sim][day]
+  const cumFees = paths.map(() => new Float64Array(days));
+  const cumIL = paths.map(() => new Float64Array(days));
+  const cumBorrow = paths.map(() => new Float64Array(days));
+  const cumNet = paths.map(() => new Float64Array(days));
+  const hfs = paths.map(() => new Float64Array(days));
+
+  for (let i = 0; i < p.nSims; i++) {
+    hfs[i][0] = strat.hf;
+    for (let t = 1; t < days; t++) {
+      const priceRatio = paths[i][t] / p.ethPrice;
+      const il = calcConcentratedIL(priceRatio, p.lpRange) * strat.lpUsd;
+      cumFees[i][t] = cumFees[i][t-1] + dailyFee;
+      cumIL[i][t] = il;
+      cumBorrow[i][t] = dailyBorrow * t;
+      cumNet[i][t] = cumFees[i][t] + cumIL[i][t] - cumBorrow[i][t];
+      hfs[i][t] = (p.depositEth * paths[i][t] * AAVE_LT) / p.borrowAmount;
+    }
+  }
+
+  // Percentiles for net P&L
+  const pcts = [5, 25, 50, 75, 95].map(pct => {
+    return timeAxis.map((_, t) => {
+      const vals = [];
+      for (let i = 0; i < p.nSims; i++) vals.push(cumNet[i][t]);
+      return percentile(vals, pct);
+    });
+  });
+
+  // Fan chart
+  const traces = [];
+  // Individual paths (max 50)
+  for (let i = 0; i < Math.min(p.nSims, 50); i++) {
+    traces.push({
+      x: timeAxis, y: Array.from(cumNet[i]),
+      mode: 'lines', line: { color: 'rgba(99,110,250,0.06)' },
+      showlegend: false, hoverinfo: 'skip',
+    });
+  }
+  const pctLabels = ['5th %ile', '25th %ile', 'Median', '75th %ile', '95th %ile'];
+  const pctColors = ['#ef553b', '#ffa15a', '#ffffff', '#90ee90', '#00cc96'];
+  const pctDash = ['dot', 'dot', 'solid', 'dot', 'dot'];
+  const pctWidth = [1, 1, 3, 1, 1];
+  pcts.forEach((data, idx) => {
+    traces.push({
+      x: timeAxis, y: data, mode: 'lines', name: pctLabels[idx],
+      line: { color: pctColors[idx], dash: pctDash[idx], width: pctWidth[idx] },
+    });
+  });
+  traces.push({
+    x: timeAxis, y: timeAxis.map(() => 0), mode: 'lines', name: 'Break-even',
+    line: { color: 'gray', dash: 'dash' },
+  });
+
+  Plotly.newPlot('pnlChart', traces, {
+    title: 'Net P&L Distribution (Fees - IL - Borrow Interest)',
+    xaxis: { title: 'Months' }, yaxis: { title: 'USD' },
+    template: 'plotly_dark', paper_bgcolor: '#0e1117', plot_bgcolor: '#0e1117',
+    height: 500, margin: { t: 40, b: 40, l: 70, r: 20 },
+    legend: { x: 0, y: 1, bgcolor: 'rgba(0,0,0,0.5)' },
+  }, { responsive: true });
+
+  // Components chart (median)
+  const medFees = timeAxis.map((_, t) => { const v=[]; for(let i=0;i<p.nSims;i++) v.push(cumFees[i][t]); return percentile(v,50); });
+  const medIL = timeAxis.map((_, t) => { const v=[]; for(let i=0;i<p.nSims;i++) v.push(cumIL[i][t]); return percentile(v,50); });
+  const medBorrow = timeAxis.map((_, t) => { const v=[]; for(let i=0;i<p.nSims;i++) v.push(-cumBorrow[i][t]); return percentile(v,50); });
+
+  Plotly.newPlot('componentsChart', [
+    { x: timeAxis, y: medFees, name: 'Cumulative Fees', fill: 'tozeroy', line: { color: '#00cc96' } },
+    { x: timeAxis, y: medIL, name: 'Impermanent Loss', fill: 'tozeroy', line: { color: '#ef553b' } },
+    { x: timeAxis, y: medBorrow, name: 'Borrow Interest', fill: 'tozeroy', line: { color: '#ffa15a' } },
+  ], {
+    title: 'P&L Components (Median Path)',
+    xaxis: { title: 'Months' }, yaxis: { title: 'USD' },
+    template: 'plotly_dark', paper_bgcolor: '#0e1117', plot_bgcolor: '#0e1117',
+    height: 400, margin: { t: 40, b: 40, l: 70, r: 20 },
+  }, { responsive: true });
+
+  // Metrics
+  const finalNets = []; for (let i=0; i<p.nSims; i++) finalNets.push(cumNet[i][days-1]);
+  const medianNet = percentile(finalNets, 50);
+  const estimatedApr = (medianNet / strat.collateralValue) * (12 / p.simMonths) * 100;
+  let maxDD = 0;
+  for (let i=0; i<p.nSims; i++) for (let t=0; t<days; t++) if (cumNet[i][t] < maxDD) maxDD = cumNet[i][t];
+  let liqCount = 0;
+  for (let i=0; i<p.nSims; i++) { for (let t=1; t<days; t++) { if (hfs[i][t] < 1.0) { liqCount++; break; } } }
+  const liqProb = (liqCount / p.nSims * 100);
+
+  document.getElementById('simMetrics').innerHTML = `
+    <div class="metric"><div class="label">Estimated APR (median)</div><div class="value">${fmt(estimatedApr, 1)}%</div></div>
+    <div class="metric"><div class="label">Max Drawdown (worst)</div><div class="value" style="color:var(--red)">${fmtUsd(maxDD)}</div></div>
+    <div class="metric"><div class="label">Liquidation Probability</div><div class="value" style="color:${liqProb>20?'var(--red)':liqProb>5?'var(--orange)':'var(--green)'}">${fmt(liqProb, 1)}%</div></div>
+    <div class="metric"><div class="label">Median Final P&L</div><div class="value">${fmtUsd(medianNet)}</div></div>
+  `;
+
+  return { estimatedApr };
+}
+
+function renderRisk(p, strat, simResult) {
+  const liqPrice = calcLiquidationPrice(p.depositEth, p.borrowAmount);
+  const distToLiq = ((p.ethPrice - liqPrice) / p.ethPrice * 100);
+
+  document.getElementById('riskContent').innerHTML = `
+    <ul class="risk-list">
+      <li><strong>Impermanent Loss (IL):</strong> Concentrated LP (+/-${(p.lpRange*100).toFixed(0)}%) amplifies IL by ~${fmt(1/p.lpRange,1)}x. Large ETH moves outside range destroy value fast while you stop earning fees.</li>
+      <li><strong>Liquidation Risk:</strong> Health Factor = ${fmt(strat.hf, 3)}. Liquidation at ETH = ${fmtUsd(liqPrice)} (-${fmt(distToLiq,1)}% from current). AAVE liquidation penalty: ${(AAVE_LIQ_PENALTY*100)}%.</li>
+      <li><strong>Borrow Rate Spikes:</strong> AAVE rates are variable. During high-demand periods rates can spike to 10-20%+, eating profits.</li>
+      <li><strong>Smart Contract Risk:</strong> Exposure to both AAVE + Uniswap compounds protocol risk.</li>
+      <li><strong>Oracle/Price Feed Risk:</strong> Flash crashes or oracle delays can trigger unexpected liquidations before you can react.</li>
+      <li><strong>Range Exhaustion:</strong> If ETH moves beyond +/-${(p.lpRange*100).toFixed(0)}%, you earn zero fees while still paying borrow interest.</li>
+    </ul>
+  `;
+
+  // Stress test
+  const drops = [0.10, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50, 0.70];
+  let stressHtml = '<tr><th>ETH Drop</th><th>New Price</th><th>Collateral</th><th>Health Factor</th><th>Status</th><th>IL (annual)</th><th>Net Annual P&L</th></tr>';
+
+  const stressHFs = [];
+  const stressLabels = [];
+
+  drops.forEach(drop => {
+    const newPrice = p.ethPrice * (1 - drop);
+    const newCollateral = p.depositEth * newPrice;
+    const newHF = calcHealthFactor(newCollateral, p.borrowAmount);
+    const priceRatio = newPrice / p.ethPrice;
+    const ilPct = calcConcentratedIL(priceRatio, p.lpRange);
+    const ilUsd = ilPct * strat.lpUsd;
+    const annualFees = strat.lpUsd * p.feeApr;
+    const annualBorrow = p.borrowAmount * p.borrowApr;
+    const netAnnual = annualFees + ilUsd - annualBorrow;
+    const collLoss = strat.collateralValue - newCollateral;
+
+    const status = newHF < 1.0 ? 'LIQUIDATED' : newHF < 1.2 ? 'DANGER' : 'OK';
+    const statusClass = newHF < 1.0 ? 'status-liquidated' : newHF < 1.2 ? 'status-danger' : 'status-ok';
+
+    stressHFs.push(newHF);
+    stressLabels.push(`-${(drop*100).toFixed(0)}%`);
+
+    stressHtml += `<tr>
+      <td>-${(drop*100).toFixed(0)}%</td>
+      <td>${fmtUsd(newPrice)}</td>
+      <td>${fmtUsd(newCollateral)}</td>
+      <td style="font-weight:700">${fmt(newHF, 3)}</td>
+      <td class="${statusClass}">${status}</td>
+      <td style="color:var(--red)">-${fmtUsd(Math.abs(ilUsd))}</td>
+      <td style="color:${netAnnual>=0?'var(--green)':'var(--red)'}">${fmtUsd(netAnnual)}</td>
+    </tr>`;
+  });
+
+  document.getElementById('stressTable').innerHTML = stressHtml;
+
+  // Stress chart
+  Plotly.newPlot('stressChart', [{
+    x: stressLabels, y: stressHFs, type: 'bar', name: 'Health Factor',
+    marker: { color: stressHFs.map(h => h > 1.5 ? '#00cc96' : h > 1.0 ? '#ffa15a' : '#ef553b') },
+    text: stressHFs.map(h => fmt(h, 3)), textposition: 'outside', textfont: { color: '#e6e6e6' },
+  }], {
+    title: 'Health Factor Under Stress',
+    xaxis: { title: 'ETH Price Drop' }, yaxis: { title: 'Health Factor' },
+    template: 'plotly_dark', paper_bgcolor: '#0e1117', plot_bgcolor: '#0e1117',
+    height: 400, margin: { t: 40, b: 40, l: 60, r: 20 },
+    shapes: [{ type: 'line', x0: -0.5, x1: drops.length - 0.5, y0: 1, y1: 1, line: { color: '#ef553b', dash: 'dash', width: 2 } }],
+    annotations: [{ x: drops.length - 1, y: 1.05, text: 'Liquidation Threshold', showarrow: false, font: { color: '#ef553b', size: 12 } }],
+  }, { responsive: true });
+}
+
+function renderSummary(p, strat, simResult) {
+  const liqPrice = calcLiquidationPrice(p.depositEth, p.borrowAmount);
+  const distToLiq = ((p.ethPrice - liqPrice) / p.ethPrice * 100);
+
+  document.getElementById('summaryContent').innerHTML = `
+    <table class="summary-table">
+      <tr><td>Collateral</td><td>${fmt(p.depositEth, 4)} ETH (${fmtUsd(strat.collateralValue)})</td></tr>
+      <tr><td>Borrow</td><td>${fmtUsd(p.borrowAmount)} USDT at ${fmt(p.borrowApr*100,1)}% APR</td></tr>
+      <tr><td>LTV Used</td><td>${fmt(p.borrowAmount/strat.collateralValue*100, 1)}% (max: ${fmt(AAVE_MAX_LTV*100,1)}%)</td></tr>
+      <tr><td>Health Factor</td><td style="color:${strat.hf>1.5?'var(--green)':'var(--orange)'}; font-weight:700">${fmt(strat.hf, 3)}</td></tr>
+      <tr><td>Liquidation Price</td><td style="color:var(--red)">${fmtUsd(liqPrice)} (-${fmt(distToLiq,1)}% from current)</td></tr>
+      <tr><td>LP Position</td><td>${fmtUsd(strat.lpUsd)} in ETH/USDT +/-${(p.lpRange*100).toFixed(0)}%</td></tr>
+      <tr><td>Expected Fees</td><td>~${fmtUsd(strat.monthlyFees)}/month (${fmt(p.feeApr*100,0)}% APR)</td></tr>
+      <tr><td>Net Monthly</td><td style="color:${strat.netMonthly>=0?'var(--green)':'var(--red)'}">${fmtUsd(strat.netMonthly)}</td></tr>
+      <tr><td>Estimated Yield</td><td>${fmt(simResult.estimatedApr, 0)}% APR (median Monte Carlo)</td></tr>
+    </table>
+    <div class="info-box" style="margin-top:16px">
+      <strong>Conclusion:</strong> This strategy can generate 25-40% APR in favorable conditions (stable ETH, high volume).
+      However, with $${fmt(p.borrowAmount,0)} borrow against ${fmtUsd(strat.collateralValue)} collateral, ETH only needs to drop
+      <strong>${fmt(distToLiq,1)}%</strong> (to ${fmtUsd(liqPrice)}) before liquidation.
+      At 30% drop HF is already ~1.07 (danger zone). At 40% drop the position is liquidated.<br><br>
+      <strong>Recommendation:</strong> Only for experienced DeFi users who actively monitor and manage positions.
+      Consider reducing borrow amount or adding more collateral to increase the safety margin.
+    </div>
+  `;
+}
+
+// ─── Slider display sync ────────────────────────────────────────────
+document.getElementById('buyEthUsd').oninput = function() { document.getElementById('buyEthVal').textContent = this.value; };
+document.getElementById('lpRange').oninput = function() { document.getElementById('lpRangeVal').textContent = this.value + '%'; };
+document.getElementById('feeApr').oninput = function() { document.getElementById('feeAprVal').textContent = this.value + '%'; };
+document.getElementById('borrowApr').oninput = function() { document.getElementById('borrowAprVal').textContent = this.value + '%'; };
+document.getElementById('simMonths').oninput = function() { document.getElementById('simMonthsVal').textContent = this.value; };
+document.getElementById('ethVol').oninput = function() { document.getElementById('volVal').textContent = this.value + '%'; };
+document.getElementById('nSims').oninput = function() { document.getElementById('nSimsVal').textContent = this.value; };
+
+// ─── Main ───────────────────────────────────────────────────────────
+function runDashboard() {
+  const p = getInputs();
+  renderWallet();
+  const strat = renderStrategy(p);
+  const simResult = renderSimulation(p, strat);
+  renderRisk(p, strat, simResult);
+  renderSummary(p, strat, simResult);
+}
+
+// Auto-run on load
+runDashboard();
+</script>
+</body>
+</html>
