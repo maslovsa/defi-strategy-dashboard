@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DeFi Strategy Dashboard</title>
+<link rel="icon" type="image/png" href="favicon.png">
 <script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
 <style>
   :root {
@@ -106,6 +107,17 @@
     color: var(--text-dim); font-size: 24px; cursor: pointer; width: auto; padding: 4px 8px;
   }
   .modal .close-btn:hover { color: var(--text); }
+  .credit-card {
+    margin-top: 16px; padding: 12px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; text-align: center;
+  }
+  .credit-link { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: var(--text); gap: 8px; }
+  .credit-avatar { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--accent); object-fit: cover; }
+  .credit-text { display: flex; flex-direction: column; gap: 2px; }
+  .credit-label { font-size: 11px; color: var(--text-dim); }
+  .credit-name { font-size: 13px; color: var(--accent); font-weight: 600; }
+  .credit-link:hover .credit-name { text-decoration: underline; }
+
   .sidebar .info-btn {
     width: 100%; padding: 10px; background: transparent; color: var(--text-dim); border: 1px solid var(--border);
     border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 400; margin-top: 8px;
@@ -191,6 +203,16 @@
   <hr>
   <button onclick="runDashboard()">Recalculate</button>
   <button class="info-btn" onclick="document.getElementById('mcModal').classList.add('active')">Как работает Монте-Карло?</button>
+
+  <div class="credit-card">
+    <a href="https://t.me/crptmnk" target="_blank" rel="noopener" class="credit-link">
+      <img src="avatar.png" alt="Sergey Maslov" class="credit-avatar" onerror="this.style.display='none'">
+      <div class="credit-text">
+        <span class="credit-label">Made for the channel</span>
+        <span class="credit-name">Sergey Maslov | Crypto Evangelist</span>
+      </div>
+    </a>
+  </div>
 </div>
 
 <!-- ─── MODAL: Monte Carlo Description ───────────────────────────────── -->
