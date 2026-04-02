@@ -105,19 +105,21 @@ def fetch_wallet_transactions(address):
 
 
 def get_demo_wallet_data():
-    """Fallback demo data simulating wallet transactions."""
-    base_time = datetime(2024, 6, 1)
+    """Real transaction data for Ivan's wallet 0x6b0f...8888, sourced from Etherscan."""
     txs = [
-        {"date": base_time, "action": "AAVE Supply", "asset": "ETH", "amount_eth": 75.1, "amount_usd": 184143.70, "hash": "0xabc1..."},
-        {"date": base_time + timedelta(hours=1), "action": "AAVE Borrow", "asset": "USDC", "amount_eth": 0, "amount_usd": 100000.00, "hash": "0xabc2..."},
-        {"date": base_time + timedelta(hours=2), "action": "Buy ETH", "asset": "ETH", "amount_eth": 8.9, "amount_usd": 21822.62, "hash": "0xabc3..."},
-        {"date": base_time + timedelta(hours=3), "action": "Uniswap V3 Mint", "asset": "ETH/USDC", "amount_eth": 8.9, "amount_usd": 100072.69, "hash": "0xabc4..."},
-        {"date": base_time + timedelta(days=30), "action": "Uniswap Collect", "asset": "Fees", "amount_eth": 0.8, "amount_usd": 1961.58, "hash": "0xabc5..."},
-        {"date": base_time + timedelta(days=60), "action": "Uniswap Collect", "asset": "Fees", "amount_eth": 1.2, "amount_usd": 2942.38, "hash": "0xabc6..."},
-        {"date": base_time + timedelta(days=90), "action": "Uniswap Collect", "asset": "Fees", "amount_eth": 2.1, "amount_usd": 5149.16, "hash": "0xabc7..."},
-        {"date": base_time + timedelta(days=120), "action": "Uniswap Collect", "asset": "Fees", "amount_eth": 1.5, "amount_usd": 3677.97, "hash": "0xabc8..."},
-        {"date": base_time + timedelta(days=150), "action": "Uniswap Collect", "asset": "Fees", "amount_eth": 2.0, "amount_usd": 4903.96, "hash": "0xabc9..."},
-        {"date": base_time + timedelta(days=180), "action": "Uniswap Collect", "asset": "Fees", "amount_eth": 1.8, "amount_usd": 4413.56, "hash": "0xabca..."},
+        # Phase 1: Across bridge → AAVE deposit → Borrow → Uniswap LP (Jan 31, 2026)
+        {"date": datetime(2026, 1, 31, 21, 12), "action": "Bridge via Across", "asset": "ETH", "amount_eth": 75.08, "amount_usd": 152280.00},
+        {"date": datetime(2026, 1, 31, 21, 16), "action": "AAVE Supply (ETH staking)", "asset": "ETH → aEthWETH", "amount_eth": 75.1, "amount_usd": 152321.00},
+        {"date": datetime(2026, 1, 31, 21, 17), "action": "AAVE Supply (cbBTC)", "asset": "cbBTC", "amount_eth": 0, "amount_usd": 345.00},
+        {"date": datetime(2026, 1, 31, 21, 21), "action": "AAVE Borrow (variable)", "asset": "USDT", "amount_eth": 0, "amount_usd": 100000.00},
+        {"date": datetime(2026, 1, 31, 21, 34), "action": "Uniswap V3 Mint #1188030", "asset": "USDT/WETH", "amount_eth": 8.9, "amount_usd": 96366.00},
+        {"date": datetime(2026, 1, 31, 21, 36), "action": "AAVE Repay (cleanup)", "asset": "USDT", "amount_eth": 0, "amount_usd": 194.65},
+        # Phase 2: Additional collateral & borrows (Feb 5-6, 2026)
+        {"date": datetime(2026, 2, 6, 10, 16), "action": "AAVE Supply (cbBTC)", "asset": "cbBTC", "amount_eth": 0, "amount_usd": 33674.00},
+        {"date": datetime(2026, 2, 6, 10, 55), "action": "AAVE Borrow (GHO)", "asset": "GHO", "amount_eth": 0, "amount_usd": 24987.00},
+        # Phase 3: Fee collections
+        {"date": datetime(2026, 3, 1, 10, 26), "action": "Uniswap Collect #1188030", "asset": "Fees", "amount_eth": 1.422, "amount_usd": 5675.00},
+        {"date": datetime(2026, 3, 28, 16, 8), "action": "Uniswap Collect + Remove #1188030", "asset": "Fees", "amount_eth": 0.586, "amount_usd": 2442.00},
     ]
     return pd.DataFrame(txs)
 

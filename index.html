@@ -171,8 +171,8 @@
   <!-- Section 1: Wallet -->
   <h2>1. Wallet Analysis</h2>
   <div class="info-box">
-    Demo data for wallet <code>0x6b0f1267f2c7a633c639fb525a400a55f8d78888</code>.
-    On GitHub Pages we can't call Etherscan API (CORS). Data below is representative of the strategy.
+    Real transaction data for Ivan's wallet <code>0x6b0f1267f2c7a633c639fb525a400a55f8d78888</code>.
+    Sourced from Etherscan. Strategy opened Jan 31, 2026.
   </div>
   <table id="walletTable"></table>
   <div class="metrics" id="walletMetrics"></div>
@@ -280,16 +280,19 @@ function percentile(arr, p) {
 
 // ─── Wallet Demo Data ───────────────────────────────────────────────
 const walletTxs = [
-  { date: '2024-06-01', action: 'AAVE Supply', asset: 'ETH', amountEth: 75.1, amountUsd: 184143.70 },
-  { date: '2024-06-01', action: 'AAVE Borrow', asset: 'USDT', amountEth: 0, amountUsd: 100000.00 },
-  { date: '2024-06-01', action: 'Buy ETH', asset: 'ETH', amountEth: 8.9, amountUsd: 21822.62 },
-  { date: '2024-06-01', action: 'Uniswap V3 Mint', asset: 'ETH/USDT', amountEth: 8.9, amountUsd: 100072.69 },
-  { date: '2024-07-01', action: 'Uniswap Collect', asset: 'Fees', amountEth: 0.8, amountUsd: 1961.58 },
-  { date: '2024-08-01', action: 'Uniswap Collect', asset: 'Fees', amountEth: 1.2, amountUsd: 2942.38 },
-  { date: '2024-09-01', action: 'Uniswap Collect', asset: 'Fees', amountEth: 2.1, amountUsd: 5149.16 },
-  { date: '2024-10-01', action: 'Uniswap Collect', asset: 'Fees', amountEth: 1.5, amountUsd: 3677.97 },
-  { date: '2024-11-01', action: 'Uniswap Collect', asset: 'Fees', amountEth: 2.0, amountUsd: 4903.96 },
-  { date: '2024-12-01', action: 'Uniswap Collect', asset: 'Fees', amountEth: 1.8, amountUsd: 4413.56 },
+  // Phase 1: Across bridge → AAVE deposit → Borrow → Uniswap LP (Jan 31, 2026)
+  { date: '2026-01-31', action: 'Bridge via Across', asset: 'ETH', amountEth: 75.08, amountUsd: 152280.00 },
+  { date: '2026-01-31', action: 'AAVE Supply (ETH staking)', asset: 'ETH → aEthWETH', amountEth: 75.1, amountUsd: 152321.00 },
+  { date: '2026-01-31', action: 'AAVE Supply (cbBTC)', asset: 'cbBTC', amountEth: 0, amountUsd: 345.00 },
+  { date: '2026-01-31', action: 'AAVE Borrow (variable)', asset: 'USDT', amountEth: 0, amountUsd: 100000.00 },
+  { date: '2026-01-31', action: 'Uniswap V3 Mint #1188030', asset: 'USDT/WETH', amountEth: 8.9, amountUsd: 96366.00 },
+  { date: '2026-01-31', action: 'AAVE Repay (cleanup)', asset: 'USDT', amountEth: 0, amountUsd: 194.65 },
+  // Phase 2: Additional collateral & borrows (Feb 5-6, 2026)
+  { date: '2026-02-06', action: 'AAVE Supply (cbBTC)', asset: 'cbBTC', amountEth: 0, amountUsd: 33674.00 },
+  { date: '2026-02-06', action: 'AAVE Borrow (GHO)', asset: 'GHO', amountEth: 0, amountUsd: 24987.00 },
+  // Phase 3: Fee collections
+  { date: '2026-03-01', action: 'Uniswap Collect #1188030', asset: 'Fees', amountEth: 1.422, amountUsd: 5675.00 },
+  { date: '2026-03-28', action: 'Uniswap Collect + Remove #1188030', asset: 'Fees', amountEth: 0.586, amountUsd: 2442.00 },
 ];
 
 // ─── Render Functions ───────────────────────────────────────────────
