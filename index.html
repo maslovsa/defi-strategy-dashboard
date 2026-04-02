@@ -83,6 +83,35 @@
   .summary-table { margin: 16px 0; }
   .summary-table td:first-child { color: var(--text-dim); font-weight: 600; width: 200px; }
 
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000;
+    justify-content: center; align-items: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    max-width: 720px; width: 90%; max-height: 85vh; overflow-y: auto; padding: 32px;
+    position: relative; line-height: 1.7; font-size: 14px;
+  }
+  .modal h2 { font-size: 20px; margin-bottom: 16px; color: var(--accent); border: none; padding: 0; }
+  .modal h3 { font-size: 16px; margin: 20px 0 8px; color: var(--text); }
+  .modal strong { color: var(--orange); }
+  .modal code { background: var(--bg); padding: 2px 6px; border-radius: 3px; font-size: 13px; }
+  .modal pre { background: var(--bg); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+  .modal pre code { padding: 0; }
+  .modal ul { padding-left: 20px; margin: 8px 0; }
+  .modal table { margin: 12px 0; }
+  .modal .close-btn {
+    position: absolute; top: 12px; right: 16px; background: none; border: none;
+    color: var(--text-dim); font-size: 24px; cursor: pointer; width: auto; padding: 4px 8px;
+  }
+  .modal .close-btn:hover { color: var(--text); }
+  .sidebar .info-btn {
+    width: 100%; padding: 10px; background: transparent; color: var(--text-dim); border: 1px solid var(--border);
+    border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 400; margin-top: 8px;
+  }
+  .sidebar .info-btn:hover { color: var(--text); border-color: var(--accent); }
+
   @media (max-width: 900px) {
     body { flex-direction: column; }
     .sidebar { width: 100%; min-width: auto; height: auto; position: static; }
@@ -161,6 +190,63 @@
 
   <hr>
   <button onclick="runDashboard()">Recalculate</button>
+  <button class="info-btn" onclick="document.getElementById('mcModal').classList.add('active')">Как работает Монте-Карло?</button>
+</div>
+
+<!-- ─── MODAL: Monte Carlo Description ───────────────────────────────── -->
+<div class="modal-overlay" id="mcModal" onclick="if(event.target===this)this.classList.remove('active')">
+  <div class="modal">
+    <button class="close-btn" onclick="document.getElementById('mcModal').classList.remove('active')">&times;</button>
+    <h2>Монте-Карло в этом дашборде</h2>
+    <h3>Идея</h3>
+    <p>У нас есть позиция (залог ETH + займ USDT + LP на Uniswap), и мы хотим понять: <strong>сколько мы заработаем или потеряем через 12 месяцев?</strong> Проблема — цена ETH непредсказуема. Мы не знаем, будет она $3000 или $1500.</p>
+    <p>Монте-Карло решает это грубой силой: <strong>генерируем 100 (или 500) случайных сценариев движения цены ETH</strong>, прогоняем нашу стратегию через каждый, и смотрим статистику результатов.</p>
+
+    <h3>Что конкретно происходит</h3>
+    <p><strong>1. Генерация ценовых путей (price paths)</strong></p>
+    <p>Каждый "путь" — это одна возможная траектория цены ETH на каждый день в течение 12 месяцев (360 дней). Используется модель <strong>Geometric Brownian Motion (GBM)</strong> — стандарт для моделирования цен активов:</p>
+    <pre><code>новая_цена = старая_цена × e^((-0.5 × σ²) × dt + σ × √dt × z)</code></pre>
+    <p>где <code>σ</code> — годовая волатильность (30% по умолчанию), <code>z</code> — случайное число из нормального распределения.</p>
+    <p>100 путей = 100 разных "параллельных вселенных", где ETH пошёл по-разному.</p>
+
+    <p><strong>2. Для каждого дня каждого пути считаем три компоненты P&amp;L:</strong></p>
+    <ul>
+      <li><strong>Cumulative Fees</strong> — сколько мы накопили с LP-позиции (растёт линейно, ~$2500/мес при 30% APR)</li>
+      <li><strong>Impermanent Loss</strong> — потеря от того, что цена ETH ушла от начальной. Чем сильнее сдвиг — тем больше IL. Концентрированная ликвидность (±15%) усиливает IL в ~6.7x</li>
+      <li><strong>Borrow Interest</strong> — сколько мы заплатили AAVE за займ (растёт линейно, ~$417/мес при 5% APR)</li>
+    </ul>
+    <p><strong>Net P&amp;L = Fees + IL − Borrow Interest</strong> (IL отрицательный, поэтому плюс)</p>
+
+    <p><strong>3. Также считаем Health Factor</strong> на каждый день — если ETH упал достаточно, HF &lt; 1.0, и позиция ликвидирована.</p>
+
+    <h3>Что показывают графики</h3>
+    <p><strong>Fan chart (веерная диаграмма):</strong></p>
+    <ul>
+      <li>Каждая полупрозрачная линия — один сценарий</li>
+      <li>Белая линия — <strong>медиана</strong> (50-й перцентиль, "типичный" исход)</li>
+      <li>Зелёные пунктиры — оптимистичные сценарии (75-й, 95-й перцентиль)</li>
+      <li>Красные/оранжевые — пессимистичные (5-й, 25-й перцентиль)</li>
+      <li>Серый пунктир — break-even (нулевой P&amp;L)</li>
+    </ul>
+
+    <h3>Метрики из симуляции</h3>
+    <table>
+      <tr><th>Метрика</th><th>Что значит</th></tr>
+      <tr><td><strong>Estimated APR</strong></td><td>Медианный годовой доход в % от залога</td></tr>
+      <tr><td><strong>Max Drawdown</strong></td><td>Худший убыток среди всех сценариев в худший день</td></tr>
+      <tr><td><strong>Liquidation Probability</strong></td><td>% сценариев, где HF упал ниже 1.0 хотя бы раз</td></tr>
+      <tr><td><strong>Median Final P&amp;L</strong></td><td>Типичный итоговый результат через N месяцев</td></tr>
+    </table>
+
+    <h3>Ограничения</h3>
+    <ul>
+      <li><strong>GBM предполагает плавное движение</strong> — в реальности ETH может упасть на 30% за день (чёрный лебедь), а модель такое генерирует крайне редко</li>
+      <li><strong>Волатильность постоянная</strong> (30%) — в реальности она скачет (бывает 15% в тихие месяцы и 80% в кризис)</li>
+      <li><strong>Fees начисляются линейно</strong> — в реальности они зависят от объёма торгов, который непредсказуем</li>
+      <li><strong>Нет учёта ребалансировки</strong> — если цена вышла из LP-диапазона, мы перестаём зарабатывать fees, но в модели это упрощено</li>
+    </ul>
+    <p>По сути, Монте-Карло здесь — не точный прогноз, а <strong>карта рисков</strong>: при каком раскладе стратегия прибыльна, при каком — убыточна, и с какой вероятностью наступит ликвидация.</p>
+  </div>
 </div>
 
 <!-- ─── MAIN CONTENT ─────────────────────────────────────────────────── -->
